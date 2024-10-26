@@ -54,10 +54,41 @@ export default function ChatbotModal() {
   const [audioUrl, setAudioUrl] = useState("");
   const [bootVisible, setBotVisible] = useState(true);
   const [userPrompt, setUserPrompt] = useState("")
+  const [exampleInput, setExampleInput] = useState([""]);
   const [messageInit, setMessageInit] = useState("Olá! Como posso ajudar você hoje?")
+  const [promptType, setPromptType] = useState('zero-shot');
+  const [examples, setExamples] = useState([]);
   const [menuConfig, setMenuConfig] = useState(true)
   const [open, setOpen] = useState(false);
   const textAreaRef = useRef(null);
+
+  const handlePromptTypeChange = (e) => {
+    const selectedType = e.target.value;
+    setPromptType(selectedType);
+
+    // Atualiza os exemplos com base no tipo selecionado
+    if (selectedType === 'zero-shot') {
+      setExamples([{ description: "Exemplo de classificação de sentimento sem exemplos anteriores." }]);
+    } else if (selectedType === 'one-shot') {
+      setExamples([
+        { description: "Defina um exemplo para o modelo, como usar uma palavra em uma frase." }
+      ]);
+    } else if (selectedType === 'few-shot') {
+      setExamples([
+        { description: "Texto: Isso é incrível! Sentimento: Negativo" },
+        { description: "Texto: Isso é ruim! Sentimento: Positivo" },
+        { description: "Texto: Uau, esse filme foi incrível! Sentimento: Positivo" }
+      ]);
+    }
+  };
+
+  const handleExampleChange = (index, value) => {
+    const newExamples = [...exampleInput];
+    newExamples[index] = value;
+    setExampleInput(newExamples);
+  };
+  
+
   const handleMouseOver = (item) => {
     setHoveredItem(item);
   };
@@ -129,14 +160,20 @@ export default function ChatbotModal() {
     setLoading(true);
 
       
-    if (!apiKey) {
-      addMessage({ role: "bot", content: "Você não tem permissão" });
-      setLoading(false);
-      return;
-    }
+    // if (!apiKey) {
+    //   addMessage({ role: "bot", content: "Você não tem permissão" });
+    //   setLoading(false);
+    //   return;
+    // }
 
     addMessage({ role: "user", content: pergunta });
     setPergunta("");
+
+     // Formata o conteúdo a ser enviado
+    const formattedExamples = exampleInput.filter(example => example).map((example, index) => `Exemplo ${index + 1}: ${example}`).join('\n');
+    const combinedPrompt = `${userPrompt}\n\n${formattedExamples}\n\nPergunta: ${pergunta}`;
+    console.log(`combinedPrompt: ${combinedPrompt}`);
+   
 
     try {
       const resposta = await axios.post(
@@ -146,7 +183,7 @@ export default function ChatbotModal() {
           messages: [
             {
               role: "system",
-              content: userPrompt,
+              content: combinedPrompt,
             },
             { role: "user", content: pergunta },
           ],
@@ -509,7 +546,46 @@ export default function ChatbotModal() {
                     <input type="password" placeholder="Insira sua chave da OpenAi" value={apiKey} onChange={handleApiKei}/>
                     <label htmlFor="">Menssagem Inicial: </label>
                     <input type="text" placeholder="Mensagem inicial que seu assistente exibira na tela" value={messageInit} onChange={handleMessageInit}/>
-                    <select></select>
+                    
+                    <label htmlFor="promptType">Tipo de Prompt: </label>
+                    <select value={promptType} onChange={handlePromptTypeChange}>
+                      <option value="zero-shot">Zero-Shot</option>
+                      <option value="one-shot">One-Shot</option>
+                      <option value="few-shot">Few-Shot</option>
+                    </select>
+
+                    {promptType === 'one-shot' && (
+                      <div style={{ marginTop: "10px" }}>
+                        <label>Exemplo: </label>
+                        <br />
+                        <textarea
+                          placeholder="Digite seu exemplo"
+                          cols="30" rows="3"
+                          style={{ width: "100%" }}
+                          value={exampleInput[0]} // Usa o valor do estado
+                          onChange={(e) => handleExampleChange(0, e.target.value)}
+                        />
+                      </div>
+                    )}
+
+                    {promptType === 'few-shot' && (
+                      <>
+                        {examples.map((example, index) => (
+                          <div key={index} style={{ marginTop: "10px" }}>
+                            <label>Exemplo {index + 1}: </label>
+                            <br />
+                            <textarea
+                              placeholder={example.description}
+                              cols="30" rows="3"
+                              style={{ width: "100%" }}
+                              value={exampleInput[index]} // Usa o valor do estado
+                              onChange={(e) => handleExampleChange(index, e.target.value)}
+                            />
+                          </div>
+                        ))}
+                      </>
+                    )}
+
                     <label htmlFor="">Prompt da Persona: </label>
                     <textarea
                       placeholder="Personalidade do seu Assistente"
@@ -518,6 +594,7 @@ export default function ChatbotModal() {
                       onChange={handlePersonaPrompt}
                     >
                     </textarea>
+                    
                   </div>
                   <div style={{marginTop: "10px"}}>
                     <Button type="button" variant="contained" style={{margin: "10px"}} onClick={() => {setMenuConfig(true), setMenuVisible(false)}}>Salvar</Button>
